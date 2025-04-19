@@ -48,7 +48,7 @@ public class CustomBucket implements Listener {
     private static final String CUSTOM_BUCKET_TAG = "custom_bucket";
     private static final String CUSTOM_BUCKET_ID = "bucket_id";
     private static double damage = 4.0;
-    private static double knockback = 2.5;
+    private static double knockback = 0.4;
     private static double stunChance = 0.3;
     private static double stunDuration = 5.0;
     private static int potionLevel = 2;
@@ -64,6 +64,7 @@ public class CustomBucket implements Listener {
     private static final Map<UUID, Double> originalAttackSpeed = new HashMap<>();
     private static final List<SoundConfig> sounds = new ArrayList<>();
     private static final Random random = new Random();
+    private static int logLevel = 1;  // 默认日志级别为1
 
     private static class SoundConfig {
         private final Sound sound;
@@ -78,6 +79,27 @@ public class CustomBucket implements Listener {
 
         public void play(Player player, org.bukkit.Location location) {
             player.playSound(location, sound, volume, pitch);
+        }
+    }
+
+    /**
+     * 记录日志
+     * @param level 日志级别
+     * @param message 日志消息
+     */
+    private static void log(int level, String message) {
+        if (logLevel >= level) {
+            bucket.getInstance().getLogger().info(message);
+        }
+    }
+
+    /**
+     * 记录调试日志
+     * @param message 日志消息
+     */
+    private static void debug(String message) {
+        if (logLevel >= 2) {
+            bucket.getInstance().getLogger().info("[DEBUG] " + message);
         }
     }
 
@@ -105,7 +127,7 @@ public class CustomBucket implements Listener {
         }
         
         damage = config.getDouble("bucket.damage", 4.0);
-        knockback = config.getDouble("bucket.knockback", 2.5);
+        knockback = config.getDouble("bucket.knockback", 0.4);
         stunChance = config.getDouble("bucket.stun.chance", 0.3);
         stunDuration = config.getDouble("bucket.stun.duration", 5.0);
         potionLevel = config.getInt("bucket.stun.potion-level", 2);
@@ -114,6 +136,10 @@ public class CustomBucket implements Listener {
         stunMessageEnabled = config.getBoolean("bucket.stun.message.enabled", true);
         stunMessageText = config.getString("bucket.stun.message.text", "&e目标已眩晕");
         stunMessageDuration = config.getDouble("bucket.stun.message.duration", 3.0);
+        
+        // 加载日志级别
+        logLevel = config.getInt("bucket.log-level", 1);
+        log(1, "日志级别已设置为: " + logLevel);
         
         // 加载音效配置
         sounds.clear();
@@ -126,14 +152,16 @@ public class CustomBucket implements Listener {
                 
                 Sound sound = Sound.valueOf(soundName);
                 sounds.add(new SoundConfig(sound, (float) volume, (float) pitch));
+                debug("已加载音效: " + soundName + " (音量: " + volume + ", 音调: " + pitch + ")");
             } catch (Exception e) {
-                bucket.getInstance().getLogger().warning("无法加载音效配置: " + soundMap);
+                log(1, "无法加载音效配置: " + soundMap);
             }
         }
         
         // 如果没有配置音效，使用默认音效
         if (sounds.isEmpty()) {
             sounds.add(new SoundConfig(Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f));
+            debug("使用默认音效: ENTITY_ITEM_BREAK");
         }
     }
 
@@ -180,9 +208,11 @@ public class CustomBucket implements Listener {
         
         try {
             NBTItem nbtItem = new NBTItem(item);
-            return nbtItem.getBoolean(CUSTOM_BUCKET_TAG);
+            boolean isCustom = nbtItem.getBoolean(CUSTOM_BUCKET_TAG);
+            debug("检查物品是否是自定义桶: " + (isCustom ? "是" : "否"));
+            return isCustom;
         } catch (Exception e) {
-            bucket.getInstance().getLogger().warning("检查NBT标签时出错: " + e.getMessage());
+            log(1, "检查NBT标签时出错: " + e.getMessage());
             return false;
         }
     }
@@ -431,24 +461,32 @@ public class CustomBucket implements Listener {
         ItemStack item = player.getInventory().getItemInMainHand();
 
         if (isCustomBucket(item)) {
+            debug("玩家 " + player.getName() + " 使用自定义桶攻击了 " + event.getEntity().getName());
+            
             // 设置伤害值
             event.setDamage(damage);
+            debug("设置伤害值为: " + damage);
             
             // 移除攻击者和目标的无敌时间
             removeEntityCooldown((LivingEntity) event.getEntity());
             removeEntityCooldown(player);
+            debug("已移除无敌时间");
             
             // 移除攻击者的攻击冷却
             removeAttackCooldown(player);
+            debug("已移除攻击冷却");
 
             // 播放音效
             playSounds(player, event.getEntity().getLocation());
+            debug("已播放音效");
             
             // 应用击退效果
             applyKnockback(event.getEntity(), player);
+            debug("已应用击退效果");
             
             // 应用眩晕效果
             applyStun(event.getEntity(), player);
+            debug("已应用眩晕效果");
         }
     }
 

@@ -53,6 +53,8 @@ bucket:
     - sound: ENTITY_ITEM_BREAK
       volume: 1.0
       pitch: 1.0
+  # 日志级别 (0: 不输出日志, 1: 普通日志, 2: 调试日志)
+  log-level: 1
 
 # 命令提示消息配置
 messages:
